@@ -393,12 +393,11 @@ for i in range(3):
 def model_inputs():
     '''Create palceholders for inputs to the model'''
     input_data = tf.placeholder(tf.int32, [None, None], name='input')
-    input_length = tf.placeholder(shape=(None,), dtype=tf.int32, name='input_length')
     targets = tf.placeholder(tf.int32, [None, None], name='targets')
     lr = tf.placeholder(tf.float32, name='learning_rate')
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 
-    return input_data, input_length, targets, lr, keep_prob
+    return input_data, targets, lr, keep_prob
 
 
 # In[32]:
@@ -568,6 +567,8 @@ num_layers = 2
 encoding_embedding_size = 512
 decoding_embedding_size = 512
 learning_rate = 0.005
+learning_rate_decay = 0.9
+min_learning_rate = 0.0001
 keep_probability = 0.75
 
 
@@ -579,7 +580,7 @@ tf.reset_default_graph()
 sess = tf.InteractiveSession()
     
 # Load the model inputs    
-input_data, input_length, targets, lr, keep_prob = model_inputs()
+input_data, targets, lr, keep_prob = model_inputs()
 # Sequence length will be the max line length for each batch
 sequence_length = tf.placeholder_with_default(max_line_length, None, name='sequence_length')
 # Find the shape of the input data for sequence_loss
@@ -628,8 +629,7 @@ def batch_data(questions, answers, batch_size):
         answers_batch = answers[start_i:start_i + batch_size]
         pad_questions_batch = np.array(pad_sentence_batch(questions_batch, questions_vocab_to_int))
         pad_answers_batch = np.array(pad_sentence_batch(answers_batch, answers_vocab_to_int))
-        batch_len = [len(seq) for seq in pad_questions_batch]
-        yield pad_questions_batch, pad_answers_batch, batch_len
+        yield pad_questions_batch, pad_answers_batch
 
 
 # In[42]:
@@ -650,8 +650,6 @@ print(len(valid_questions))
 
 # In[43]:
 
-learning_rate_decay = 0.9
-min_learning_rate = 0.0001
 display_step = 100 # Check training loss after every 100 batches
 stop_early = 0 
 stop = 5 # If the validation loss does decrease in 5 consecutive checks, stop training
@@ -664,13 +662,12 @@ checkpoint = "best_model.ckpt"
 sess.run(tf.global_variables_initializer())
 
 for epoch_i in range(1, epochs+1):
-    for batch_i, (questions_batch, answers_batch, batch_len) in enumerate(
+    for batch_i, (questions_batch, answers_batch) in enumerate(
             batch_data(train_questions, train_answers, batch_size)):
         start_time = time.time()
         _, loss = sess.run(
             [train_op, cost],
             {input_data: questions_batch,
-             input_length: batch_len,
              targets: answers_batch,
              lr: learning_rate,
              sequence_length: answers_batch.shape[1],
@@ -693,10 +690,9 @@ for epoch_i in range(1, epochs+1):
         if batch_i % validation_check == 0 and batch_i > 0:
             total_valid_loss = 0
             start_time = time.time()
-            for batch_ii, (questions_batch, answers_batch, batch_len) in                     enumerate(batch_data(valid_questions, valid_answers, batch_size)):
+            for batch_ii, (questions_batch, answers_batch) in                     enumerate(batch_data(valid_questions, valid_answers, batch_size)):
                 valid_loss = sess.run(
                 cost, {input_data: questions_batch,
-                       input_length: batch_len,
                        targets: answers_batch,
                        lr: learning_rate,
                        sequence_length: answers_batch.shape[1],
