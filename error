@@ -1,0 +1,2 @@
+# Load the data
+lines = open('movie_lines.txt', encoding='utf-8', error='ignore').read().split('\n')
